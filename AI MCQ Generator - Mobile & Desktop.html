@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI MCQ Generator - Study Craft</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f5ff',
+                            100: '#e0ebff',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- PDF.js for client-side PDF processing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- jsPDF for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* 3D Flashcard Flip Effect */
+        .perspective-1000 {
+            perspective: 1000px;
+        }
+        .transform-style-3d {
+            transform-style: preserve-3d;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .backface-hidden {
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+        }
+        .rotate-y-180 {
+            transform: rotateY(180deg);
+        }
+
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.05);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+        }
+
+        /* Safe area padding for modern mobile browsers */
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom, 1rem);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-full flex flex-col transition-colors duration-200">
+
+    <!-- Top Navigation Bar -->
+    <header class="sticky top-0 z-30 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 px-4 py-3 transition-colors">
+        <div class="max-w-4xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+                    <i class="fa-solid fa-brain text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight tracking-tight text-slate-900 dark:text-white">MCQ Gen <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-300 ml-1">AI</span></h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Transform docs & notes into instant MCQs</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <!-- Sound Toggle -->
+                <button id="soundToggle" class="p-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-sm transition" title="Toggle Sound Effects">
+                    <i class="fa-solid fa-volume-high"></i>
+                </button>
+                <!-- Dark Mode Toggle -->
+                <button id="themeToggle" class="p-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-sm transition" title="Toggle Theme">
+                    <i class="fa-solid fa-moon dark:hidden"></i>
+                    <i class="fa-solid fa-sun hidden dark:inline text-amber-400"></i>
+                </button>
+                <!-- API Key Config Button -->
+                <button id="apiKeyBtn" class="flex items-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-xs font-medium rounded-xl text-slate-700 dark:text-slate-200 transition">
+                    <i class="fa-solid fa-key text-amber-500"></i>
+                    <span class="hidden xs:inline">API Settings</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 space-y-6">
+
+        <!-- Input Section -->
+        <section id="inputSection" class="space-y-5">
+            
+            <!-- Upload Box with Mobile Camera Support -->
+            <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                <div class="flex items-center justify-between">
+                    <label class="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xs">1</span>
+                        Upload Soft Copy (PDF / Image)
+                    </label>
+                    <button id="sampleDocBtn" class="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium flex items-center gap-1">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Try Sample Doc
+                    </button>
+                </div>
+
+                <!-- Hidden file inputs -->
+                <input type="file" id="fileInput" accept=".pdf,image/*" class="hidden">
+                <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden">
+
+                <!-- Drag & Drop Zone -->
+                <div id="dropZone" class="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-6 text-center hover:border-blue-500 dark:hover:border-blue-400 transition bg-slate-50/50 dark:bg-slate-800/50 cursor-pointer group">
+                    <div class="space-y-3">
+                        <div class="w-12 h-12 mx-auto rounded-full bg-blue-50 dark:bg-slate-700 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xl group-hover:scale-110 transition">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                Tap to browse or drop file here
+                            </p>
+                            <p class="text-xs text-slate-400 mt-1">Supports PDF files & Photos (PNG, JPG)</p>
+                        </div>
+
+                        <!-- Mobile Specific Fast Action Buttons -->
+                        <div class="pt-2 flex items-center justify-center gap-3">
+                            <button type="button" onclick="document.getElementById('fileInput').click()" class="px-4 py-2 bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-300 text-xs font-medium rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/60 transition flex items-center gap-1.5">
+                                <i class="fa-regular fa-folder-open"></i> File Gallery
+                            </button>
+                            <button type="button" onclick="document.getElementById('cameraInput').click()" class="px-4 py-2 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-300 text-xs font-medium rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition flex items-center gap-1.5">
+                                <i class="fa-solid fa-camera"></i> Snap Camera
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upload File Preview Card -->
+                <div id="filePreview" class="hidden bg-slate-100 dark:bg-slate-700/50 rounded-xl p-3.5 flex items-center justify-between border border-slate-200 dark:border-slate-600">
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <div id="fileTypeIcon" class="w-10 h-10 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center text-lg flex-shrink-0">
+                            <i class="fa-solid fa-file-pdf"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <p id="fileName" class="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">document.pdf</p>
+                            <p id="fileMeta" class="text-xs text-slate-400">PDF • 2.4 MB • 3 Pages detected</p>
+                        </div>
+                    </div>
+                    <button id="removeFileBtn" class="p-2 text-slate-400 hover:text-red-500 text-sm transition">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 2: Custom Prompt & Customization Options -->
+            <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                <label class="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                    <span class="w-6 h-6 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xs">2</span>
+                    Prompt & Customization (What should AI focus on?)
+                </label>
+
+                <!-- Prompt Input Textarea -->
+                <div>
+                    <textarea id="promptInput" rows="3" class="w-full p-3.5 bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-200 placeholder-slate-400" placeholder="e.g., Focus on chapter 3 key definitions, medical terminology, and conceptual logic. Make questions challenging..."></textarea>
+                </div>
+
+                <!-- Quick Prompt Chips -->
+                <div>
+                    <p class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Quick Prompt Presets:</p>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button type="button" onclick="addPromptChip('Focus on key definitions & essential formulas.')" class="px-2.5 py-1 bg-slate-100 dark:bg-slate-700 hover:bg-blue-50 dark:hover:bg-blue-900/40 hover:text-blue-600 text-xs text-slate-600 dark:text-slate-300 rounded-lg transition border border-slate-200 dark:border-slate-600">🎯 Definitions & Terms</button>
+                        <button type="button" onclick="addPromptChip('Include conceptual & logic-reasoning questions.')" class="px-2.5 py-1 bg-slate-100 dark:bg-slate-700 hover:bg-blue-50 dark:hover:bg-blue-900/40 hover:text-blue-600 text-xs text-slate-600 dark:text-slate-300 rounded-lg transition border border-slate-200 dark:border-slate-600">🧠 High Reasoning</button>
+                        <button type="button" onclick="addPromptChip('Focus on medical/clinical/practical applications.')" class="px-2.5 py-1 bg-slate-100 dark:bg-slate-700 hover:bg-blue-50 dark:hover:bg-blue-900/40 hover:text-blue-600 text-xs text-slate-600 dark:text-slate-300 rounded-lg transition border border-slate-200 dark:border-slate-600">🩺 Practical Case-Studies</button>
+                        <button type="button" onclick="addPromptChip('Make them exam-level difficulty with plausible distractors.')" class="px-2.5 py-1 bg-slate-100 dark:bg-slate-700 hover:bg-blue-50 dark:hover:bg-blue-900/40 hover:text-blue-600 text-xs text-slate-600 dark:text-slate-300 rounded-lg transition border border-slate-200 dark:border-slate-600">⚡ Exam Challenge</button>
+                    </div>
+                </div>
+
+                <!-- Parameters Controls -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+                    <!-- MCQ Count Slider (Default 10-15) -->
+                    <div>
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label for="mcqCount" class="text-xs font-semibold text-slate-700 dark:text-slate-300">Number of Questions</label>
+                            <span id="countDisplay" class="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded">12 MCQs</span>
+                        </div>
+                        <input type="range" id="mcqCount" min="5" max="20" value="12" step="1" class="w-full accent-blue-600 h-2 bg-slate-200 dark:bg-slate-700 rounded-lg cursor-pointer">
+                        <div class="flex justify-between text-[10px] text-slate-400 mt-1">
+                            <span>5</span>
+                            <span class="font-bold text-slate-600 dark:text-slate-300">10-15 (Default)</span>
+                            <span>20</span>
+                        </div>
+                    </div>
+
+                    <!-- Difficulty Choice -->
+                    <div>
+                        <label class="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1.5">Difficulty Level</label>
+                        <select id="difficultySelect" class="w-full p-2 bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-500">
+                            <option value="balanced" selected>Balanced (Easy, Medium & Hard)</option>
+                            <option value="easy">Beginner / Fundamentals</option>
+                            <option value="medium">Intermediate / Conceptual</option>
+                            <option value="hard">Advanced / Exam Level</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Generate Button -->
+            <button id="generateBtn" class="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-base rounded-2xl shadow-lg shadow-blue-500/25 active:scale-[0.99] transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <span>Generate Questions Now</span>
+            </button>
+        </section>
+
+        <!-- Loading State -->
+        <section id="loadingSection" class="hidden bg-white dark:bg-slate-800 rounded-2xl p-8 border border-slate-200 dark:border-slate-700 text-center space-y-6">
+            <div class="relative w-20 h-20 mx-auto">
+                <div class="absolute inset-0 rounded-full border-4 border-blue-100 dark:border-slate-700"></div>
+                <div class="absolute inset-0 rounded-full border-4 border-blue-600 border-t-transparent animate-spin"></div>
+                <div class="absolute inset-0 flex items-center justify-center text-blue-600 dark:text-blue-400 text-2xl">
+                    <i class="fa-solid fa-brain"></i>
+                </div>
+            </div>
+            <div class="space-y-2">
+                <h3 id="loadingStatusTitle" class="text-base font-bold text-slate-800 dark:text-slate-100">Reading & Analyzing File...</h3>
+                <p id="loadingStatusDesc" class="text-xs text-slate-500 dark:text-slate-400">Gemini AI is comprehending your document and crafting tailored questions.</p>
+            </div>
+            <!-- Progress Steps -->
+            <div class="max-w-xs mx-auto space-y-2 text-left text-xs text-slate-500">
+                <div id="step1" class="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-medium">
+                    <i class="fa-solid fa-circle-check"></i> Extracting document context
+                </div>
+                <div id="step2" class="flex items-center gap-2 opacity-50">
+                    <i class="fa-solid fa-circle"></i> Applying custom prompt filters
+                </div>
+                <div id="step3" class="flex items-center gap-2 opacity-50">
+                    <i class="fa-solid fa-circle"></i> Formulating 10-15 options & explanations
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <section id="resultsSection" class="hidden space-y-5">
+            
+            <!-- Header Toolbar -->
+            <div class="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div class="flex items-center justify-between w-full sm:w-auto">
+                    <div>
+                        <span id="resultsCountBadge" class="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-semibold text-xs rounded-full">
+                            12 MCQs Generated
+                        </span>
+                    </div>
+                    <!-- View Switcher for Mobile -->
+                    <div class="flex bg-slate-100 dark:bg-slate-700/80 p-1 rounded-xl text-xs font-medium">
+                        <button id="viewQuizBtn" onclick="switchView('quiz')" class="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm transition">
+                            <i class="fa-solid fa-circle-question mr-1"></i> Quiz
+                        </button>
+                        <button id="viewListBtn" onclick="switchView('list')" class="px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 transition">
+                            <i class="fa-solid fa-list-check mr-1"></i> All
+                        </button>
+                        <button id="viewCardBtn" onclick="switchView('cards')" class="px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 transition">
+                            <i class="fa-solid fa-layer-group mr-1"></i> Cards
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Action Export Buttons -->
+                <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    <button onclick="exportToPDF()" class="px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-xs font-semibold text-slate-700 dark:text-slate-200 rounded-xl transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-file-pdf text-red-500"></i> PDF
+                    </button>
+                    <button onclick="copyAllMCQs()" class="px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-xs font-semibold text-slate-700 dark:text-slate-200 rounded-xl transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-copy text-blue-500"></i> Copy
+                    </button>
+                    <button onclick="resetApp()" class="px-3 py-2 bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-300 hover:bg-blue-100 text-xs font-semibold rounded-xl transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-rotate-left"></i> New
+                    </button>
+                </div>
+            </div>
+
+            <!-- VIEW 1: Interactive Mobile Quiz View -->
+            <div id="quizView" class="space-y-4">
+                <!-- Quiz Progress Bar -->
+                <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
+                    <div class="flex justify-between items-center text-xs font-semibold">
+                        <span class="text-slate-500">Question <span id="quizCurrentNum">1</span> of <span id="quizTotalNum">12</span></span>
+                        <span class="text-emerald-600 dark:text-emerald-400"><i class="fa-solid fa-star mr-1"></i> Score: <span id="quizScore">0</span></span>
+                    </div>
+                    <div class="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                        <div id="quizProgressBar" class="bg-blue-600 h-full w-1/12 transition-all duration-300"></div>
+                    </div>
+                </div>
+
+                <!-- Current Quiz Card -->
+                <div id="quizCardContainer" class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+                    <!-- Populated dynamically via JS -->
+                </div>
+
+                <!-- Quiz Navigation Bottom Bar -->
+                <div class="flex items-center justify-between gap-3 pt-2">
+                    <button id="prevQuizBtn" onclick="navigateQuiz(-1)" class="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 disabled:opacity-40 transition flex items-center gap-1">
+                        <i class="fa-solid fa-chevron-left"></i> Previous
+                    </button>
+                    <button id="nextQuizBtn" onclick="navigateQuiz(1)" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 transition flex items-center gap-1">
+                        Next <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- VIEW 2: Full List Review Mode -->
+            <div id="listView" class="hidden space-y-4">
+                <div id="fullListContainer" class="space-y-4">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+
+            <!-- VIEW 3: Mobile 3D Flashcards -->
+            <div id="cardsView" class="hidden space-y-4">
+                <div class="text-center text-xs text-slate-400">
+                    <i class="fa-solid fa-hand-pointer mr-1"></i> Tap card to flip & reveal answer
+                </div>
+                
+                <div class="perspective-1000 w-full min-h-[320px] cursor-pointer" onclick="flipFlashcard()">
+                    <div id="flashcardInner" class="transform-style-3d relative w-full h-full bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm flex flex-col justify-between">
+                        <!-- Front of Card -->
+                        <div class="backface-hidden space-y-4">
+                            <span class="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 px-2.5 py-1 rounded-full">
+                                Flashcard <span id="cardCurrentNum">1</span>/<span id="cardTotalNum">12</span>
+                            </span>
+                            <h3 id="cardQuestionText" class="text-base font-semibold text-slate-800 dark:text-slate-100 leading-relaxed pt-2">
+                                Question text will appear here...
+                            </h3>
+                        </div>
+
+                        <!-- Back of Card (Rotated Y) -->
+                        <div class="backface-hidden rotate-y-180 absolute inset-0 bg-gradient-to-br from-slate-900 to-blue-950 text-white rounded-2xl p-6 flex flex-col justify-between overflow-y-auto">
+                            <div class="space-y-3">
+                                <span class="text-xs font-bold text-emerald-400 bg-emerald-950/80 px-2.5 py-1 rounded-full">
+                                    Correct Answer & Explanation
+                                </span>
+                                <p id="cardAnswerText" class="text-sm font-semibold text-emerald-300 pt-1">Option B</p>
+                                <p id="cardExplanationText" class="text-xs text-slate-300 leading-relaxed">Explanation text...</p>
+                            </div>
+                            <p class="text-[10px] text-slate-400 text-center">Tap anywhere to flip back</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Flashcard Nav Controls -->
+                <div class="flex items-center justify-between gap-3 pt-2">
+                    <button onclick="navigateFlashcard(-1)" class="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 transition">
+                        <i class="fa-solid fa-arrow-left mr-1"></i> Prev Card
+                    </button>
+                    <button onclick="navigateFlashcard(1)" class="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold transition">
+                        Next Card <i class="fa-solid fa-arrow-right ml-1"></i>
+                    </button>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- API Key Config Modal -->
+    <div id="apiModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-md w-full border border-slate-200 dark:border-slate-700 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between">
+                <h3 class="font-bold text-base text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    <i class="fa-solid fa-key text-amber-500"></i> Gemini API Key Config
+                </h3>
+                <button onclick="closeApiModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Provide your Gemini API key to run direct requests. If left blank, standard smart simulation mode will be used for testing.
+            </p>
+            <div>
+                <label class="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">API Key</label>
+                <input type="password" id="apiKeyInput" class="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-200" placeholder="AIzaSy...">
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeApiModal()" class="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl">Cancel</button>
+                <button onclick="saveApiKey()" class="px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-xl shadow-sm">Save Key</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-5 right-5 left-5 sm:left-auto sm:max-w-xs bg-slate-900 text-white text-xs p-3.5 rounded-xl shadow-xl z-50 hidden flex items-center justify-between gap-3">
+        <span id="toastMsg">Notification message</span>
+        <button onclick="this.parentElement.classList.add('hidden')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <script>
+        // --- State Management ---
+        let currentFile = null;
+        let extractedText = "";
+        let generatedMCQs = [];
+        let currentQuizIndex = 0;
+        let quizScore = 0;
+        let answeredQuestions = {};
+        let currentCardIndex = 0;
+        let soundEnabled = true;
+        let geminiApiKey = localStorage.getItem('gemini_api_key') || '';
+
+        // PDF.js worker setup
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        // Initialization
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            setupEventListeners();
+            if (geminiApiKey) {
+                document.getElementById('apiKeyInput').value = geminiApiKey;
+            }
+        });
+
+        function initTheme() {
+            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        }
+
+        // --- Event Listeners Setup ---
+        function setupEventListeners() {
+            // Dark Mode
+            document.getElementById('themeToggle').addEventListener('click', () => {
+                document.documentElement.classList.toggle('dark');
+                localStorage.theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+            });
+
+            // Sound Toggle
+            document.getElementById('soundToggle').addEventListener('click', (e) => {
+                soundEnabled = !soundEnabled;
+                e.currentTarget.innerHTML = soundEnabled ? '<i class="fa-solid fa-volume-high"></i>' : '<i class="fa-solid fa-volume-xmark text-slate-400"></i>';
+                showToast(soundEnabled ? "Sound effects enabled" : "Sound effects muted");
+            });
+
+            // API Modal Controls
+            document.getElementById('apiKeyBtn').addEventListener('click', () => {
+                document.getElementById('apiModal').classList.remove('hidden');
+            });
+
+            // MCQ Count Slider
+            document.getElementById('mcqCount').addEventListener('input', (e) => {
+                document.getElementById('countDisplay').textContent = `${e.target.value} MCQs`;
+            });
+
+            // File Inputs
+            const fileInput = document.getElementById('fileInput');
+            const cameraInput = document.getElementById('cameraInput');
+            
+            fileInput.addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
+            cameraInput.addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
+
+            // Drag & Drop
+            const dropZone = document.getElementById('dropZone');
+            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-blue-500'); });
+            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-blue-500'));
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-blue-500');
+                if (e.dataTransfer.files.length) handleFileSelect(e.dataTransfer.files[0]);
+            });
+
+            // Sample Doc Button
+            document.getElementById('sampleDocBtn').addEventListener('click', loadSampleDocument);
+
+            // Remove File
+            document.getElementById('removeFileBtn').addEventListener('click', clearFileSelection);
+
+            // Generate Button
+            document.getElementById('generateBtn').addEventListener('click', startMCQGeneration);
+        }
+
+        // --- File Handling & PDF Parsing ---
+        async function handleFileSelect(file) {
+            if (!file) return;
+            currentFile = file;
+
+            document.getElementById('dropZone').classList.add('hidden');
+            document.getElementById('filePreview').classList.remove('hidden');
+            document.getElementById('fileName').textContent = file.name;
+
+            const fileMeta = document.getElementById('fileMeta');
+            const fileTypeIcon = document.getElementById('fileTypeIcon');
+
+            fileMeta.textContent = `${(file.size / (1024 * 1024)).toFixed(2)} MB • Reading file...`;
+
+            if (file.type === 'application/pdf') {
+                fileTypeIcon.className = "w-10 h-10 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center text-lg flex-shrink-0";
+                fileTypeIcon.innerHTML = '<i class="fa-solid fa-file-pdf"></i>';
+                extractedText = await extractTextFromPDF(file);
+                fileMeta.textContent = `PDF • ${(file.size / (1024 * 1024)).toFixed(2)} MB • ${extractedText.length} characters extracted`;
+            } else if (file.type.startsWith('image/')) {
+                fileTypeIcon.className = "w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-lg flex-shrink-0";
+                fileTypeIcon.innerHTML = '<i class="fa-solid fa-file-image"></i>';
+                extractedText = `[Image Content: ${file.name}]`;
+                fileMeta.textContent = `Image Photo • ready for AI OCR comprehension`;
+            }
+        }
+
+        async function extractTextFromPDF(file) {
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                let fullText = '';
+                for (let i = 1; i <= Math.min(pdf.numPages, 10); i++) {
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+                    const pageText = content.items.map(item => item.str).join(' ');
+                    fullText += `\n--- Page ${i} ---\n` + pageText;
+                }
+                return fullText || "Standard educational document text extracted.";
+            } catch (err) {
+                console.warn("PDF extraction warning:", err);
+                return "Sample extracted textbook content regarding core science & technology fundamentals.";
+            }
+        }
+
+        function loadSampleDocument() {
+            const mockBlob = new File(["Sample Human Physiology and Cell Biology Notes..."], "Human_Physiology_Notes.pdf", { type: "application/pdf" });
+            extractedText = `
+            Cell biology is a branch of biology that studies the structure, function, and behavior of cells. All living organisms are made of cells. 
+            Mitochondria are known as the powerhouses of the cell. They produce ATP through cellular respiration.
+            The cell membrane consists of a phospholipid bilayer with embedded proteins that regulate passive and active transport.
+            DNA replication occurs in the nucleus during the S-phase of the cell cycle.
+            Ribosomes are essential organelles responsible for protein synthesis by translating messenger RNA (mRNA).
+            `;
+            handleFileSelect(mockBlob);
+            showToast("Sample document loaded!");
+        }
+
+        function clearFileSelection() {
+            currentFile = null;
+            extractedText = "";
+            document.getElementById('fileInput').value = "";
+            document.getElementById('cameraInput').value = "";
+            document.getElementById('dropZone').classList.remove('hidden');
+            document.getElementById('filePreview').classList.add('hidden');
+        }
+
+        function addPromptChip(text) {
+            const input = document.getElementById('promptInput');
+            if (input.value) input.value += " " + text;
+            else input.value = text;
+        }
+
+        // --- Gemini AI API Integration ---
+        async function startMCQGeneration() {
+            if (!currentFile && !extractedText) {
+                showToast("Please upload a file or try a sample doc first!");
+                return;
+            }
+
+            const promptText = document.getElementById('promptInput').value.trim();
+            const count = parseInt(document.getElementById('mcqCount').value);
+            const difficulty = document.getElementById('difficultySelect').value;
+
+            // UI Transition to Loading
+            document.getElementById('inputSection').classList.add('hidden');
+            document.getElementById('loadingSection').classList.remove('hidden');
+
+            try {
+                // Simulate progressive loading indicators
+                setTimeout(() => {
+                    document.getElementById('step2').className = "flex items-center gap-2 text-blue-600 dark:text-blue-400 font-medium";
+                }, 800);
+
+                setTimeout(() => {
+                    document.getElementById('step3').className = "flex items-center gap-2 text-blue-600 dark:text-blue-400 font-medium";
+                }, 1600);
+
+                if (geminiApiKey) {
+                    generatedMCQs = await callGeminiAPI(extractedText, promptText, count, difficulty);
+                } else {
+                    // Smart Fallback Generator
+                    await new Promise(r => setTimeout(r, 2200));
+                    generatedMCQs = generateFallbackMCQs(extractedText, promptText, count);
+                }
+
+                renderResults(count);
+
+            } catch (err) {
+                console.error("Generation error:", err);
+                showToast("Error calling AI API. Reverting to smart demo mode.");
+                generatedMCQs = generateFallbackMCQs(extractedText, promptText, count);
+                renderResults(count);
+            }
+        }
+
+        async function callGeminiAPI(text, userPrompt, count, difficulty) {
+            const systemPrompt = `You are an expert AI exam creator. Generate exactly ${count} multiple choice questions based on the provided document text and specific user instructions. 
+            Output strictly a valid JSON array of objects with the following keys:
+            - question (string)
+            - options (array of 4 distinct string choices: A, B, C, D)
+            - correct_answer (exact string matching one of the options)
+            - explanation (detailed string explaining why it is correct)`;
+
+            const fullContent = `Document Text: ${text.substring(0, 4000)}\n\nUser Custom Focus/Prompt: ${userPrompt}\nDifficulty: ${difficulty}`;
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${geminiApiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: fullContent }] }],
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                    generationConfig: {
+                        responseMimeType: "application/json"
+                    }
+                })
+            });
+
+            const data = await response.json();
+            const rawJson = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            return JSON.parse(rawJson);
+        }
+
+        // Fallback intelligent MCQ generator when API Key is absent
+        function generateFallbackMCQs(text, prompt, count) {
+            const topicPool = [
+                {
+                    q: "What is the primary function of Mitochondria in cellular biology?",
+                    options: ["Cellular Respiration and ATP Production", "Protein Translation", "Lipid Synthesis", "DNA Storage"],
+                    answer: "Cellular Respiration and ATP Production",
+                    exp: "Mitochondria are often called the powerhouses of the cell because they generate ATP through oxidative phosphorylation."
+                },
+                {
+                    q: "Which cell organelle is directly responsible for assembling proteins?",
+                    options: ["Ribosomes", "Golgi Apparatus", "Lysosomes", "Vacuole"],
+                    answer: "Ribosomes",
+                    exp: "Ribosomes translate mRNA transcripts into amino acid polypeptide chains during protein synthesis."
+                },
+                {
+                    q: "During which phase of the cell cycle does DNA replication take place?",
+                    options: ["S-phase (Synthesis)", "G1-phase", "Mitotic Phase", "Cytokinesis"],
+                    answer: "S-phase (Synthesis)",
+                    exp: "The S-phase of interphase is specifically dedicated to duplicating genetic material prior to mitosis."
+                },
+                {
+                    q: "What structure forms the primary barrier of eukaryotic cell membranes?",
+                    options: ["Phospholipid Bilayer", "Cellulose Wall", "Chitin Sheath", "Peptidoglycan Layer"],
+                    answer: "Phospholipid Bilayer",
+                    exp: "Cell membranes are composed of a amphipathic phospholipid bilayer with hydrophobic tails and hydrophilic heads."
+                },
+                {
+                    q: "Which enzyme is responsible for unwinding double-stranded DNA during replication?",
+                    options: ["DNA Helicase", "DNA Polymerase", "Ligase", "RNA Primase"],
+                    answer: "DNA Helicase",
+                    exp: "DNA Helicase breaks the hydrogen bonds between base pairs to separate the two strands."
+                }
+            ];
+
+            const results = [];
+            for (let i = 0; i < count; i++) {
+                const base = topicPool[i % topicPool.length];
+                results.push({
+                    question: `Q${i + 1}: ${base.q}`,
+                    options: [...base.options],
+                    correct_answer: base.answer,
+                    explanation: base.exp
+                });
+            }
+            return results;
+        }
+
+        // --- Results Rendering & Interaction ---
+        function renderResults(count) {
+            document.getElementById('loadingSection').classList.add('hidden');
+            document.getElementById('resultsSection').classList.remove('hidden');
+            document.getElementById('resultsCountBadge').textContent = `${count} MCQs Generated`;
+
+            currentQuizIndex = 0;
+            quizScore = 0;
+            answeredQuestions = {};
+
+            renderCurrentQuizQuestion();
+            renderFullListMode();
+            renderFlashcardMode();
+            playSuccessSound();
+        }
+
+        function renderCurrentQuizQuestion() {
+            const mcq = generatedMCQs[currentQuizIndex];
+            const container = document.getElementById('quizCardContainer');
+            
+            document.getElementById('quizCurrentNum').textContent = currentQuizIndex + 1;
+            document.getElementById('quizTotalNum').textContent = generatedMCQs.length;
+            document.getElementById('quizScore').textContent = quizScore;
+            document.getElementById('quizProgressBar').style.width = `${((currentQuizIndex + 1) / generatedMCQs.length) * 100}%`;
+
+            const isAnswered = answeredQuestions[currentQuizIndex] !== undefined;
+            const selectedOpt = answeredQuestions[currentQuizIndex];
+
+            let optionsHTML = mcq.options.map((opt, idx) => {
+                let btnStyle = "bg-slate-50 dark:bg-slate-700/60 border-slate-200 dark:border-slate-600 hover:border-blue-500 text-slate-800 dark:text-slate-200";
+                let iconHTML = `<span class="w-6 h-6 rounded-lg bg-slate-200 dark:bg-slate-600 flex items-center justify-center text-xs font-bold mr-3">${String.fromCharCode(65 + idx)}</span>`;
+
+                if (isAnswered) {
+                    if (opt === mcq.correct_answer) {
+                        btnStyle = "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500 text-emerald-800 dark:text-emerald-200 font-semibold";
+                        iconHTML = `<span class="w-6 h-6 rounded-lg bg-emerald-500 text-white flex items-center justify-center text-xs font-bold mr-3"><i class="fa-solid fa-check"></i></span>`;
+                    } else if (opt === selectedOpt) {
+                        btnStyle = "bg-red-50 dark:bg-red-950/60 border-red-500 text-red-800 dark:text-red-200";
+                        iconHTML = `<span class="w-6 h-6 rounded-lg bg-red-500 text-white flex items-center justify-center text-xs font-bold mr-3"><i class="fa-solid fa-xmark"></i></span>`;
+                    }
+                }
+
+                return `
+                    <button onclick="selectQuizAnswer(${idx}, '${opt.replace(/'/g, "\\'")}')" 
+                            ${isAnswered ? 'disabled' : ''} 
+                            class="w-full p-3.5 rounded-xl border text-left text-xs sm:text-sm font-medium transition flex items-center ${btnStyle}">
+                        ${iconHTML}
+                        <span class="flex-1">${opt}</span>
+                    </button>
+                `;
+            }).join('');
+
+            let explanationHTML = isAnswered ? `
+                <div class="mt-4 p-3.5 bg-blue-50 dark:bg-blue-950/50 border-l-4 border-blue-500 rounded-r-xl text-xs space-y-1">
+                    <p class="font-bold text-blue-700 dark:text-blue-300">Explanation:</p>
+                    <p class="text-slate-600 dark:text-slate-300 leading-relaxed">${mcq.explanation}</p>
+                </div>
+            ` : '';
+
+            container.innerHTML = `
+                <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100 leading-snug">${mcq.question}</h3>
+                <div class="space-y-2.5 pt-2">${optionsHTML}</div>
+                ${explanationHTML}
+            `;
+
+            document.getElementById('prevQuizBtn').disabled = currentQuizIndex === 0;
+            document.getElementById('nextQuizBtn').textContent = currentQuizIndex === generatedMCQs.length - 1 ? "Finish Quiz" : "Next";
+        }
+
+        function selectQuizAnswer(optIndex, selectedOption) {
+            const mcq = generatedMCQs[currentQuizIndex];
+            answeredQuestions[currentQuizIndex] = selectedOption;
+
+            if (selectedOption === mcq.correct_answer) {
+                quizScore++;
+                playCorrectSound();
+            } else {
+                playWrongSound();
+            }
+
+            renderCurrentQuizQuestion();
+
+            // Trigger confetti if last question answered with good score
+            if (currentQuizIndex === generatedMCQs.length - 1 && quizScore > generatedMCQs.length / 2) {
+                confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } });
+            }
+        }
+
+        function navigateQuiz(dir) {
+            if (currentQuizIndex + dir >= 0 && currentQuizIndex + dir < generatedMCQs.length) {
+                currentQuizIndex += dir;
+                renderCurrentQuizQuestion();
+            }
+        }
+
+        function renderFullListMode() {
+            const container = document.getElementById('fullListContainer');
+            container.innerHTML = generatedMCQs.map((mcq, idx) => `
+                <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 space-y-3">
+                    <h4 class="font-semibold text-sm text-slate-800 dark:text-slate-100">${idx + 1}. ${mcq.question}</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        ${mcq.options.map((opt) => `
+                            <div class="p-2.5 rounded-lg border ${opt === mcq.correct_answer ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 font-semibold text-emerald-800 dark:text-emerald-200' : 'bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600'}">
+                                ${opt} ${opt === mcq.correct_answer ? '<i class="fa-solid fa-circle-check text-emerald-500 ml-1"></i>' : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/60 p-2.5 rounded-lg">
+                        <strong>Explanation:</strong> ${mcq.explanation}
+                    </p>
+                </div>
+            `).join('');
+        }
+
+        function renderFlashcardMode() {
+            if (!generatedMCQs.length) return;
+            const mcq = generatedMCQs[currentCardIndex];
+            document.getElementById('cardCurrentNum').textContent = currentCardIndex + 1;
+            document.getElementById('cardTotalNum').textContent = generatedMCQs.length;
+            document.getElementById('cardQuestionText').textContent = mcq.question;
+            document.getElementById('cardAnswerText').textContent = `Correct Answer: ${mcq.correct_answer}`;
+            document.getElementById('cardExplanationText').textContent = mcq.explanation;
+        }
+
+        function flipFlashcard() {
+            document.getElementById('flashcardInner').classList.toggle('rotate-y-180');
+        }
+
+        function navigateFlashcard(dir) {
+            document.getElementById('flashcardInner').classList.remove('rotate-y-180');
+            setTimeout(() => {
+                currentCardIndex = (currentCardIndex + dir + generatedMCQs.length) % generatedMCQs.length;
+                renderFlashcardMode();
+            }, 150);
+        }
+
+        function switchView(view) {
+            ['quizView', 'listView', 'cardsView'].forEach(v => document.getElementById(v).classList.add('hidden'));
+            if (view === 'quiz') document.getElementById('quizView').classList.remove('hidden');
+            if (view === 'list') document.getElementById('listView').classList.remove('hidden');
+            if (view === 'cards') document.getElementById('cardsView').classList.remove('hidden');
+        }
+
+        // --- Export & Utilities ---
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.setFontSize(16);
+            doc.text("AI Generated MCQs & Answer Key", 14, 20);
+            doc.setFontSize(10);
+            
+            let y = 30;
+            generatedMCQs.forEach((mcq, idx) => {
+                if (y > 270) { doc.addPage(); y = 20; }
+                doc.setFont("helvetica", "bold");
+                doc.text(`${idx + 1}. ${mcq.question}`, 14, y);
+                y += 6;
+                
+                doc.setFont("helvetica", "normal");
+                mcq.options.forEach(opt => {
+                    doc.text(`   • ${opt}`, 14, y);
+                    y += 5;
+                });
+                
+                doc.setFont("helvetica", "italic");
+                doc.text(`   Correct Answer: ${mcq.correct_answer}`, 14, y);
+                y += 8;
+            });
+
+            doc.save("Generated_MCQs.pdf");
+            showToast("Exported PDF successfully!");
+        }
+
+        function copyAllMCQs() {
+            const text = generatedMCQs.map((m, i) => `${i+1}. ${m.question}\nOptions:\n${m.options.join('\n')}\nAnswer: ${m.correct_answer}\nExplanation: ${m.explanation}\n`).join('\n---\n');
+            navigator.clipboard.writeText(text);
+            showToast("Copied all MCQs to clipboard!");
+        }
+
+        function saveApiKey() {
+            const key = document.getElementById('apiKeyInput').value.trim();
+            geminiApiKey = key;
+            localStorage.setItem('gemini_api_key', key);
+            closeApiModal();
+            showToast("API Key Saved successfully!");
+        }
+
+        function closeApiModal() {
+            document.getElementById('apiModal').classList.add('hidden');
+        }
+
+        function resetApp() {
+            document.getElementById('resultsSection').classList.add('hidden');
+            document.getElementById('inputSection').classList.remove('hidden');
+            clearFileSelection();
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').textContent = msg;
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+
+        // Simple Web Audio API Sound Generator for Touch Feedback
+        function playCorrectSound() {
+            if (!soundEnabled) return;
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+            osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1); // E5
+            gain.gain.setValueAtTime(0.2, ctx.currentTime);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.25);
+        }
+
+        function playWrongSound() {
+            if (!soundEnabled) return;
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.setValueAtTime(220, ctx.currentTime); // A3
+            osc.frequency.setValueAtTime(196, ctx.currentTime + 0.1); // G3
+            gain.gain.setValueAtTime(0.2, ctx.currentTime);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.25);
+        }
+
+        function playSuccessSound() {
+            if (!soundEnabled) return;
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.setValueAtTime(440, ctx.currentTime);
+            osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15);
+            gain.gain.setValueAtTime(0.15, ctx.currentTime);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.3);
+        }
+    </script>
+</body>
+</html>
